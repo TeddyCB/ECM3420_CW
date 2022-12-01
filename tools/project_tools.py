@@ -5,6 +5,7 @@ from keras.models import Sequential
 from keras.layers import Dense, LSTM, GRU
 from keras.metrics import RootMeanSquaredError
 from keras.backend import clear_session
+
 # Log return function
 def lg_return(df):
     lg_return_list = []
@@ -14,9 +15,9 @@ def lg_return(df):
         daily_return = (np.log(row["Close"]) - np.log(row["Open"]))
         lg_return_list.append(daily_return)
         if daily_return > 0:
-            up_down.append(1)
+            up_down.append("UP")
         else:
-            up_down.append(0)
+            up_down.append("DOWN")
     return lg_return_list, up_down
 
 def even_out_frames(df1, df2):
@@ -82,7 +83,7 @@ def evaluate(X_train, Y_train, X_test, Y_test, rnn_type, epochs, iterations, sca
         elif rnn_type == "LSTM":
             model = LSTM_RNN(128, input_shape=(X_train.shape[1], 1))
         else: 
-            model = LSTM_GRU(128, input_shape=(X_train.shape[1], 1))
+            model = LSTM_GRU(128, 128, input_shape=(X_train.shape[1], 1))
         # train the data against the RMSE and validate the data against the test data
         hist = train(X_train, Y_train, X_test, Y_test, model, epochs, loss="mean_squared_error")
         model_history.append(hist.history)
@@ -97,6 +98,7 @@ def evaluate(X_train, Y_train, X_test, Y_test, rnn_type, epochs, iterations, sca
         # add the RMSE of the final epoch to the prediction error list
         prediction_error.append(mean_squared_error(Y_test, prediction, squared=False))
         model = None
+    clear_session()
     return predictions, model_history, prediction_error
 
 def group_by_epoch(model_history, epoch):
@@ -104,9 +106,9 @@ def group_by_epoch(model_history, epoch):
     for history in model_history:
         for k in history.keys():
             if k not in epoch_group:
-                epoch_group[k] = [history[k][: epoch]]
+                epoch_group[k] = [history[k][epoch - 1]]
                 continue
-            epoch_group[k].append(history[k][: epoch])
+            epoch_group[k].append(history[k][epoch - 1])
     return epoch_group
 
 
@@ -122,3 +124,31 @@ def plot_dfs_in_range(lower, upper, data):
         c += 1
     
     return ax
+
+def smart_average(values):
+    # drop the max and min values
+    values.remove(max(values))
+    values.remove(min(values))
+    sum = 0
+    for value in values:
+        sum += value
+    sum /= len(values)
+    return sum
+
+
+def analysis_by_epoch(history, max_epoch):
+    history_by_epoch = []
+
+    for i in range(1, max_epoch):
+        history_by_epoch.append(group_by_epoch(model_history=history, epoch=i))
+
+    average_loss_by_epoch = []
+
+    for epoch in history_by_epoch:
+        avg_epoch = {}
+        for k in epoch.keys():
+            avg = smart_average(epoch[k])
+            avg_epoch["average " + k] = avg
+        average_loss_by_epoch.append(avg_epoch)
+    
+    return history_by_epoch, average_loss_by_epoch
