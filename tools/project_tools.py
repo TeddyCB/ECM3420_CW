@@ -5,6 +5,7 @@ from keras.models import Sequential
 from keras.layers import Dense, LSTM, GRU
 from keras.metrics import RootMeanSquaredError
 from keras.backend import clear_session
+from copy import copy
 
 # Log return function
 def lg_return(df):
@@ -83,8 +84,8 @@ def evaluate(X_train, Y_train, X_test, Y_test, rnn_type, epochs, iterations, sca
         elif rnn_type == "LSTM":
             model = LSTM_RNN(128, input_shape=(X_train.shape[1], 1))
         else: 
-            model = LSTM_GRU(128, 128, input_shape=(X_train.shape[1], 1))
-        # train the data against the RMSE and validate the data against the test data
+            model = LSTM_GRU(64, 64, input_shape=(X_train.shape[1], 1))
+        # train the data against the RMSE and validate the data against the test set. 
         hist = train(X_train, Y_train, X_test, Y_test, model, epochs, loss="mean_squared_error")
         model_history.append(hist.history)
 
@@ -139,7 +140,7 @@ def smart_average(values):
 def analysis_by_epoch(history, max_epoch):
     history_by_epoch = []
 
-    for i in range(1, max_epoch):
+    for i in range(max_epoch):
         history_by_epoch.append(group_by_epoch(model_history=history, epoch=i))
 
     average_loss_by_epoch = []
@@ -152,3 +153,18 @@ def analysis_by_epoch(history, max_epoch):
         average_loss_by_epoch.append(avg_epoch)
     
     return history_by_epoch, average_loss_by_epoch
+
+
+def average_predictions(predictions, predictions_error):
+    min_prediction, max_prediction = (predictions_error.index(min(predictions_error)), predictions_error.index(max(predictions_error)))
+    total = None
+    tmp = copy(predictions)
+    tmp.pop(min_prediction)
+    tmp.pop(max_prediction - 1)
+    for prediction in tmp:
+        if total is None:
+            total = prediction["Predicted Next Tokyo Open"]
+        else:
+            total += prediction["Predicted Next Tokyo Open"]
+    total.apply(lambda x: x / len(predictions))
+    return total
